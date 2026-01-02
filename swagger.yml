@@ -1,0 +1,19 @@
+openapi: 3.0.0
+info:
+  title: "COMP2001 CW2 ProfileService"
+  description: "ProfileService API (skeleton)"
+  version: "1.0.0"
+
+servers:
+  - url: "/api"
+
+paths:
+  /health:
+    get:
+      operationId: "health.check"
+      tags:
+        - Health
+      summary: "Health check"
+      responses:
+        "200":
+          description: "Service is healthy"
