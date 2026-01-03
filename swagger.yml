@@ -17,3 +17,16 @@ paths:
       responses:
         "200":
           description: "Service is healthy"
+
+  /db-health:
+    get:
+      operationId: "db_health.check"
+      tags:
+        - Health
+      summary: "Database connectivity check"
+      responses:
+        "200":
+          description: "Database connection OK"
+        "500":
+          description: "Database connection failed"
+
