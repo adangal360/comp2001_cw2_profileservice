@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: "COMP2001 CW2 ProfileService"
-  description: "ProfileService API (skeleton)"
+  description: "ProfileService API"
   version: "1.0.0"
 
 servers:
@@ -11,8 +11,7 @@ paths:
   /health:
     get:
       operationId: "health.check"
-      tags:
-        - Health
+      tags: [Health]
       summary: "Health check"
       responses:
         "200":
@@ -21,12 +20,207 @@ paths:
   /db-health:
     get:
       operationId: "db_health.check"
-      tags:
-        - Health
+      tags: [Health]
       summary: "Database connectivity check"
       responses:
         "200":
           description: "Database connection OK"
         "500":
           description: "Database connection failed"
+
+  /profiles:
+    get:
+      operationId: "profiles.read_all"
+      tags: [Profiles]
+      summary: "List all profiles"
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: "profiles.create"
+      tags: [Profiles]
+      summary: "Create a profile"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileCreate"
+      responses:
+        "201":
+          description: "Created"
+        "409":
+          description: "Email already exists"
+
+  /profiles/{email}:
+    get:
+      operationId: "profiles.read_one"
+      tags: [Profiles]
+      summary: "Read one profile"
+      parameters:
+        - $ref: "#/components/parameters/email"
+      responses:
+        "200":
+          description: "OK"
+        "404":
+          description: "Not found"
+    put:
+      operationId: "profiles.update"
+      tags: [Profiles]
+      summary: "Update a profile"
+      parameters:
+        - $ref: "#/components/parameters/email"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: "Updated"
+        "404":
+          description: "Not found"
+    delete:
+      operationId: "profiles.delete"
+      tags: [Profiles]
+      summary: "Delete a profile"
+      parameters:
+        - $ref: "#/components/parameters/email"
+      responses:
+        "200":
+          description: "Deleted"
+        "404":
+          description: "Not found"
+
+  /activities:
+    get:
+      operationId: "activities.read_all"
+      tags: [Activities]
+      summary: "List all activities"
+      responses:
+        "200":
+          description: "OK"
+    post:
+      operationId: "activities.create"
+      tags: [Activities]
+      summary: "Create an activity"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivityCreate"
+      responses:
+        "201":
+          description: "Created"
+        "409":
+          description: "Activity already exists"
+
+  /profiles/{email}/favourites:
+    get:
+      operationId: "favourites.read_all"
+      tags: [Favourites]
+      summary: "List favourites for a profile"
+      parameters:
+        - $ref: "#/components/parameters/email"
+      responses:
+        "200":
+          description: "OK"
+        "404":
+          description: "Profile not found"
+    post:
+      operationId: "favourites.create"
+      tags: [Favourites]
+      summary: "Add favourite activity for a profile"
+      parameters:
+        - $ref: "#/components/parameters/email"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FavouriteCreate"
+      responses:
+        "201":
+          description: "Created"
+        "404":
+          description: "Profile or Activity not found"
+        "409":
+          description: "Favourite already exists"
+
+  /profiles/{email}/favourites/{activity_id}:
+    delete:
+      operationId: "favourites.delete"
+      tags: [Favourites]
+      summary: "Remove favourite activity for a profile"
+      parameters:
+        - $ref: "#/components/parameters/email"
+        - $ref: "#/components/parameters/activity_id"
+      responses:
+        "200":
+          description: "Deleted"
+        "404":
+          description: "Favourite not found"
+
+components:
+  parameters:
+    email:
+      name: email
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 30
+    activity_id:
+      name: activity_id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  schemas:
+    ProfileCreate:
+      type: object
+      required: [Email, Username, Password]
+      properties:
+        Email: { type: string, maxLength: 30 }
+        Username: { type: string, maxLength: 30 }
+        AboutMe: { type: string }
+        Location: { type: string, maxLength: 50 }
+        Dob: { type: string, format: date }
+        Language: { type: string, maxLength: 30 }
+        Password: { type: string, maxLength: 30 }
+        Role:
+          type: string
+          maxLength: 5
+          enum: [Admin, User]
+          default: User
+
+    ProfileUpdate:
+      type: object
+      properties:
+        Username: { type: string, maxLength: 30 }
+        AboutMe: { type: string }
+        Location: { type: string, maxLength: 50 }
+        Dob: { type: string, format: date }
+        Language: { type: string, maxLength: 30 }
+        Password: { type: string, maxLength: 30 }
+        Role:
+          type: string
+          maxLength: 5
+          enum: [Admin, User]
+
+    ActivityCreate:
+      type: object
+      required: [Activity]
+      properties:
+        Activity: { type: string, maxLength: 30 }
+
+    FavouriteCreate:
+      type: object
+      required: [Activity_id]
+      properties:
+        Activity_id: { type: integer }
+
 

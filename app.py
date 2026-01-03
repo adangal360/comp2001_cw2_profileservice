@@ -1,6 +1,5 @@
 import connexion
-
-from config import db, build_db_uri
+from config import db, ma, build_db_uri
 
 app = connexion.App(__name__, specification_dir="./")
 app.add_api("swagger.yml")
@@ -10,6 +9,7 @@ flask_app.config["SQLALCHEMY_DATABASE_URI"] = build_db_uri()
 flask_app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(flask_app)
+ma.init_app(flask_app)
 
 @flask_app.route("/")
 def home():
