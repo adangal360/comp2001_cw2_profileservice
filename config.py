@@ -32,8 +32,8 @@ def build_db_uri() -> str:
         )
 
     # Allow the ODBC driver to be overridden if needed,
-    # but default to the SQL Server 17 driver used in CW2.
-    driver = os.getenv("DB_DRIVER", "ODBC Driver 17 for SQL Server")
+    # but default to the SQL Server 18 driver used in CW2.
+    driver = os.getenv("DB_DRIVER", "ODBC Driver 18 for SQL Server")
 
     # Build a raw ODBC connection string.
     # This is URL-encoded before being passed to SQLAlchemy.

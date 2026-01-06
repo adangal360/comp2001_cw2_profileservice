@@ -12,7 +12,7 @@ SERVER = "dist-6-505.uopnet.plymouth.ac.uk"
 DATABASE = "COMP2001_ADangal"
 USERNAME = "ADangal"
 PASSWORD = os.getenv("DB_PASSWORD")
-DRIVER = "{ODBC Driver 17 for SQL Server}"
+DRIVER = "{ODBC Driver 18 for SQL Server}"
 SCHEMA = "CW2"
 
 if not PASSWORD:

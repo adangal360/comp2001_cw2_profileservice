@@ -16,7 +16,7 @@ ARG DB_SERVER
 ARG DB_NAME
 ARG DB_USER
 ARG DB_PASSWORD
-ARG DB_DRIVER="ODBC Driver 17 for SQL Server"
+ARG DB_DRIVER="ODBC Driver 18 for SQL Server"
 
 # Expose the build arguments as environment variables inside the container
 ENV DB_SERVER=${DB_SERVER} \
@@ -40,12 +40,14 @@ RUN apt-get update -y \
 
 
 # --- Install Microsoft SQL Server ODBC Driver ---
+# Use msodbcsql18 because it supports arm64 builds (Apple Silicon) and amd64.
 RUN curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/microsoft.gpg \
-  && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/11/prod bullseye main" \
+  && echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/11/prod bullseye main" \
      > /etc/apt/sources.list.d/mssql-release.list \
   && apt-get update -y \
-  && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql17 \
+  && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 \
   && rm -rf /var/lib/apt/lists/*
+
 
 
 # --- Application setup ---
