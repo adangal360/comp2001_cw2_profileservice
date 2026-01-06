@@ -1,7 +1,10 @@
 from flask import abort
 from auth_client import verify_email_password
 
+# Public endpoint used to verify credentials against the external
+# COMP2001 Authenticator service.
 def verify(credentials):
+    # Basic request validation: both fields must be present in the payload.
     email = credentials.get("Email")
     password = credentials.get("Password")
     if not email or not password:

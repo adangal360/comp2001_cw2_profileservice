@@ -47,9 +47,6 @@ paths:
       operationId: "profiles.create"
       tags: [Profiles]
       summary: "Create a profile (must be the same user as auth headers)"
-      parameters:
-        - $ref: "#/components/parameters/auth_email"
-        - $ref: "#/components/parameters/auth_password"
       requestBody:
         required: true
         content:
@@ -66,33 +63,6 @@ paths:
           description: "Forbidden (must be same user)"
         "409":
           description: "Email already exists"
-
-  /profiles/upsert:
-    post:
-      operationId: "profiles.upsert"
-      tags: [Profiles]
-      summary: "Create or update a profile (stored procedure) (Admin only)"
-      parameters:
-        - $ref: "#/components/parameters/auth_email"
-        - $ref: "#/components/parameters/auth_password"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              x-body-name: profile
-              $ref: "#/components/schemas/ProfileUpdate"
-      responses:
-        "200":
-          description: "Updated"
-        "201":
-          description: "Created"
-        "400":
-          description: "Bad request"
-        "401":
-          description: "Unauthenticated"
-        "403":
-          description: "Forbidden (Admin required)"
 
   /profiles/{email}:
     get:
@@ -280,14 +250,12 @@ components:
       schema:
         type: string
         maxLength: 30
-
     activity_id:
       name: activity_id
       in: path
       required: true
       schema:
         type: integer
-
     auth_email:
       name: X-Auth-Email
       in: header
@@ -295,7 +263,6 @@ components:
       schema:
         type: string
       description: "Email used to authenticate against Authenticator API"
-
     auth_password:
       name: X-Auth-Password
       in: header
@@ -307,7 +274,7 @@ components:
   schemas:
     ProfileCreate:
       type: object
-      required: [Email, Username]
+      required: [Email, Username, Password]
       properties:
         Email: { type: string, maxLength: 30 }
         Username: { type: string, maxLength: 30 }
@@ -320,6 +287,10 @@ components:
           maxLength: 5
           enum: [Admin, User]
           default: User
+        Password:
+          type: string
+          maxLength: 128
+          description: "Plain password provided by the client; stored only as a secure hash."
 
     ProfileUpdate:
       type: object
@@ -334,6 +305,10 @@ components:
           type: string
           maxLength: 5
           enum: [Admin, User]
+        Password:
+          type: string
+          maxLength: 128
+          description: "If provided, password will be re-hashed and updated."
 
     ActivityCreate:
       type: object

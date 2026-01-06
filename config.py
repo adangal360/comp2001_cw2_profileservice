@@ -2,34 +2,41 @@ import os
 import pathlib
 import urllib.parse
 
-import connexion
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 
-basedir = pathlib.Path(__file__).parent.resolve()
-
-
-connex_app = connexion.App(__name__, specification_dir=basedir)
-app = connex_app.app
-
-
+# Shared SQLAlchemy and Marshmallow instances.
+# These are initialised in app.py once the Flask app is created.
 db = SQLAlchemy()
 ma = Marshmallow()
 
 
 def build_db_uri() -> str:
+    """
+    Build a SQLAlchemy-compatible database URI for SQL Server using pyodbc.
+
+    Connection details are provided via environment variables so that:
+    - credentials are not hard-coded
+    - the service can run consistently in Docker and locally
+    """
+
     server = os.getenv("DB_SERVER")
     database = os.getenv("DB_NAME")
     username = os.getenv("DB_USER")
     password = os.getenv("DB_PASSWORD")
 
+    # Fail fast if any required configuration is missing.
     if not all([server, database, username, password]):
         raise RuntimeError(
             "Missing DB env vars. Set DB_SERVER, DB_NAME, DB_USER, DB_PASSWORD."
         )
 
+    # Allow the ODBC driver to be overridden if needed,
+    # but default to the SQL Server 17 driver used in CW2.
     driver = os.getenv("DB_DRIVER", "ODBC Driver 17 for SQL Server")
 
+    # Build a raw ODBC connection string.
+    # This is URL-encoded before being passed to SQLAlchemy.
     odbc_str = (
         f"DRIVER={{{driver}}};"
         f"SERVER={server};"
@@ -41,12 +48,3 @@ def build_db_uri() -> str:
     )
 
     return "mssql+pyodbc:///?odbc_connect=" + urllib.parse.quote_plus(odbc_str)
-
-
-
-app.config["SQLALCHEMY_DATABASE_URI"] = build_db_uri()
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-
-db.init_app(app)
-ma.init_app(app)

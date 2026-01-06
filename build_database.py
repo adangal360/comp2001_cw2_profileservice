@@ -1,8 +1,13 @@
-# build_database.py  (UPDATED: adds ProfileAudit + trigger + view + stored procedure)
+# Responsible for creating and verifying all CW2 database objects at runtime.
+# This script is executed automatically when the Docker container starts.
 
 import os
 import pyodbc
+from werkzeug.security import generate_password_hash
 
+# --- Database connection configuration ---
+# Credentials are provided via environment variables (baked into the Docker image
+# for CW2 constraints). No credentials are committed to version control.
 SERVER = "dist-6-505.uopnet.plymouth.ac.uk"
 DATABASE = "COMP2001_ADangal"
 USERNAME = "ADangal"
@@ -13,6 +18,7 @@ SCHEMA = "CW2"
 if not PASSWORD:
     raise RuntimeError("DB_PASSWORD environment variable is not set")
 
+# ODBC connection string for direct SQL execution.
 conn_str = (
     f"DRIVER={DRIVER};"
     f"SERVER={SERVER};"
@@ -25,6 +31,9 @@ conn_str = (
     "Trusted_Connection=No;"
 )
 
+# --- Core schema and table creation ---
+# All objects are created only if they do not already exist,
+# allowing the container to be restarted safely.
 CREATE_SQL = f"""
 -- Create schema if missing
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = '{SCHEMA}')
@@ -32,7 +41,8 @@ BEGIN
     EXEC('CREATE SCHEMA {SCHEMA}');
 END;
 
--- PROFILE (FDG-driven)
+-- PROFILE
+-- Password column stores secure hashes only; plaintext passwords are never persisted.
 IF OBJECT_ID('{SCHEMA}.Profile', 'U') IS NULL
 BEGIN
     CREATE TABLE {SCHEMA}.Profile (
@@ -42,14 +52,14 @@ BEGIN
         Location    VARCHAR(50)  NULL,
         Dob         DATE         NULL,
         Language    VARCHAR(30)  NULL,
-        Password    VARCHAR(30)  NOT NULL,
+        Password    VARCHAR(255) NOT NULL,
         Role        VARCHAR(5)   NOT NULL CONSTRAINT DF_Profile_Role DEFAULT 'User',
         CONSTRAINT PK_Profile PRIMARY KEY (Email),
         CONSTRAINT CK_Profile_Role CHECK (Role IN ('Admin', 'User'))
     );
 END;
 
--- ACTIVITY (FDG-driven)
+-- ACTIVITY
 IF OBJECT_ID('{SCHEMA}.Activity', 'U') IS NULL
 BEGIN
     CREATE TABLE {SCHEMA}.Activity (
@@ -60,7 +70,7 @@ BEGIN
     );
 END;
 
--- FAVOURITE ACTIVITY (FDG-driven link table)
+-- FAVOURITE ACTIVITY
 IF OBJECT_ID('{SCHEMA}.FavouriteActivity', 'U') IS NULL
 BEGIN
     CREATE TABLE {SCHEMA}.FavouriteActivity (
@@ -76,7 +86,8 @@ BEGIN
     );
 END;
 
--- PROFILE AUDIT (for Trigger evidence)
+-- PROFILE AUDIT
+-- Used to demonstrate triggers and data auditing for CW2.
 IF OBJECT_ID('{SCHEMA}.ProfileAudit', 'U') IS NULL
 BEGIN
     CREATE TABLE {SCHEMA}.ProfileAudit (
@@ -89,15 +100,18 @@ BEGIN
     );
 END;
 
--- TRIGGER: audit Profile INSERT
+-- Drop trigger and stored procedures if they already exist to allow re-creation
 IF OBJECT_ID('{SCHEMA}.trg_Profile_Audit_Insert', 'TR') IS NOT NULL
     DROP TRIGGER {SCHEMA}.trg_Profile_Audit_Insert;
 
--- STORED PROCEDURE: upsert profile
-IF OBJECT_ID('{SCHEMA}.usp_UpsertProfile', 'P') IS NOT NULL
-    DROP PROCEDURE {SCHEMA}.usp_UpsertProfile;
+IF OBJECT_ID('{SCHEMA}.usp_Profile_Create', 'P') IS NOT NULL DROP PROCEDURE {SCHEMA}.usp_Profile_Create;
+IF OBJECT_ID('{SCHEMA}.usp_Profile_ReadAll', 'P') IS NOT NULL DROP PROCEDURE {SCHEMA}.usp_Profile_ReadAll;
+IF OBJECT_ID('{SCHEMA}.usp_Profile_ReadByEmail', 'P') IS NOT NULL DROP PROCEDURE {SCHEMA}.usp_Profile_ReadByEmail;
+IF OBJECT_ID('{SCHEMA}.usp_Profile_Update', 'P') IS NOT NULL DROP PROCEDURE {SCHEMA}.usp_Profile_Update;
+IF OBJECT_ID('{SCHEMA}.usp_Profile_Delete', 'P') IS NOT NULL DROP PROCEDURE {SCHEMA}.usp_Profile_Delete;
 """
 
+# --- Trigger for auditing profile creation ---
 TRIGGER_SQL = f"""
 CREATE TRIGGER {SCHEMA}.trg_Profile_Audit_Insert
 ON {SCHEMA}.Profile
@@ -117,7 +131,9 @@ BEGIN
 END;
 """
 
-# VIEW: profiles + favourites + activity name (report-friendly)
+# --- View for reporting / inspection ---
+# Provides a denormalised, read-optimised view of profiles and their favourites.
+# Intended for reporting and evidence, not direct API usage.
 VIEW_SQL = f"""
 IF OBJECT_ID('{SCHEMA}.vw_ProfileFavourites', 'V') IS NOT NULL
     DROP VIEW {SCHEMA}.vw_ProfileFavourites;
@@ -139,17 +155,20 @@ LEFT JOIN {SCHEMA}.Activity AS a
 ');
 """
 
-# Stored procedure: kept inside EXEC('...') to avoid "CREATE PROCEDURE must be first in batch" issues
+# --- Profile CRUD stored procedures ---
+# All CRUD operations in Profile
+# are performed via stored procedures.
 PROC_SQL = f"""
+-- CREATE
 EXEC('
-CREATE PROCEDURE {SCHEMA}.usp_UpsertProfile
+CREATE PROCEDURE {SCHEMA}.usp_Profile_Create
     @Email      VARCHAR(30),
     @Username   VARCHAR(30),
     @AboutMe    VARCHAR(MAX) = NULL,
     @Location   VARCHAR(50)  = NULL,
     @Dob        DATE         = NULL,
     @Language   VARCHAR(30)  = NULL,
-    @Password   VARCHAR(30),
+    @Password   VARCHAR(255),
     @Role       VARCHAR(5)   = ''User''
 AS
 BEGIN
@@ -157,51 +176,210 @@ BEGIN
 
     IF EXISTS (SELECT 1 FROM {SCHEMA}.Profile WHERE Email = @Email)
     BEGIN
-        UPDATE {SCHEMA}.Profile
-        SET
-            Username  = @Username,
-            AboutMe   = @AboutMe,
-            Location  = @Location,
-            Dob       = @Dob,
-            Language  = @Language,
-            Password  = @Password,
-            Role      = @Role
-        WHERE Email = @Email;
-
-        SELECT ''UPDATED'' AS result;
+        RAISERROR(''Profile already exists'', 16, 1);
+        RETURN;
     END
-    ELSE
+
+    INSERT INTO {SCHEMA}.Profile (Email, Username, AboutMe, Location, Dob, Language, Password, Role)
+    VALUES (@Email, @Username, @AboutMe, @Location, @Dob, @Language, @Password, @Role);
+
+    SELECT ''CREATED'' AS result;
+END
+');
+
+-- READ ALL
+EXEC('
+CREATE PROCEDURE {SCHEMA}.usp_Profile_ReadAll
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        Email,
+        Username,
+        AboutMe,
+        Location,
+        Dob,
+        Language,
+        Role
+    FROM {SCHEMA}.Profile
+    ORDER BY Email;
+END
+');
+
+-- READ BY EMAIL
+EXEC('
+CREATE PROCEDURE {SCHEMA}.usp_Profile_ReadByEmail
+    @Email VARCHAR(30)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        Email,
+        Username,
+        AboutMe,
+        Location,
+        Dob,
+        Language,
+        Role
+    FROM {SCHEMA}.Profile
+    WHERE Email = @Email;
+END
+');
+
+-- UPDATE
+EXEC('
+CREATE PROCEDURE {SCHEMA}.usp_Profile_Update
+    @Email      VARCHAR(30),
+    @Username   VARCHAR(30)  = NULL,
+    @AboutMe    VARCHAR(MAX) = NULL,
+    @Location   VARCHAR(50)  = NULL,
+    @Dob        DATE         = NULL,
+    @Language   VARCHAR(30)  = NULL,
+    @Password   VARCHAR(255) = NULL,
+    @Role       VARCHAR(5)   = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM {SCHEMA}.Profile WHERE Email = @Email)
     BEGIN
-        INSERT INTO {SCHEMA}.Profile (Email, Username, AboutMe, Location, Dob, Language, Password, Role)
-        VALUES (@Email, @Username, @AboutMe, @Location, @Dob, @Language, @Password, @Role);
-
-        SELECT ''CREATED'' AS result;
+        RAISERROR(''Profile not found'', 16, 1);
+        RETURN;
     END
+
+    UPDATE {SCHEMA}.Profile
+    SET
+        Username = COALESCE(@Username, Username),
+        AboutMe  = COALESCE(@AboutMe, AboutMe),
+        Location = COALESCE(@Location, Location),
+        Dob      = COALESCE(@Dob, Dob),
+        Language = COALESCE(@Language, Language),
+        Password = COALESCE(@Password, Password),
+        Role     = COALESCE(@Role, Role)
+    WHERE Email = @Email;
+
+    SELECT ''UPDATED'' AS result;
+END
+');
+
+-- DELETE
+EXEC('
+CREATE PROCEDURE {SCHEMA}.usp_Profile_Delete
+    @Email VARCHAR(30)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM {SCHEMA}.Profile WHERE Email = @Email)
+    BEGIN
+        RAISERROR(''Profile not found'', 16, 1);
+        RETURN;
+    END
+
+    DELETE FROM {SCHEMA}.Profile
+    WHERE Email = @Email;
+
+    SELECT ''DELETED'' AS result;
 END
 ');
 """
 
-SEED_SQL = f"""
--- Seed required accounts (roles are stored in Trail App DB)
-IF NOT EXISTS (SELECT 1 FROM {SCHEMA}.Profile WHERE Email = 'grace@plymouth.ac.uk')
-BEGIN
-    INSERT INTO {SCHEMA}.Profile (Email, Username, AboutMe, Location, Dob, Language, Password, Role)
-    VALUES ('grace@plymouth.ac.uk', 'Grace Hopper', NULL, NULL, NULL, NULL, '***', 'Admin');
-END;
+# --- Seed data helpers ---
+# These functions populate baseline data for testing and demonstration.
+# All inserts are safe to run multiple times.
 
-IF NOT EXISTS (SELECT 1 FROM {SCHEMA}.Profile WHERE Email = 'tim@plymouth.ac.uk')
-BEGIN
-    INSERT INTO {SCHEMA}.Profile (Email, Username, AboutMe, Location, Dob, Language, Password, Role)
-    VALUES ('tim@plymouth.ac.uk', 'Tim Berners-Lee', NULL, NULL, NULL, NULL, '***', 'User');
-END;
+def seed_profiles(cur):
+    # Seed required user accounts with hashed passwords.
+    seeds = [
+        ("grace@plymouth.ac.uk", "Grace Hopper", "ISAD123!", "Admin"),
+        ("tim@plymouth.ac.uk", "Tim Berners-Lee", "COMP2001!", "User"),
+        ("ada@plymouth.ac.uk", "Ada Lovelace", "insecurePassword", "User"),
+    ]
 
-IF NOT EXISTS (SELECT 1 FROM {SCHEMA}.Profile WHERE Email = 'ada@plymouth.ac.uk')
-BEGIN
-    INSERT INTO {SCHEMA}.Profile (Email, Username, AboutMe, Location, Dob, Language, Password, Role)
-    VALUES ('ada@plymouth.ac.uk', 'Ada Lovelace', NULL, NULL, NULL, NULL, '***', 'User');
-END;
-"""
+    for email, username, plain_password, role in seeds:
+        exists = cur.execute(
+            f"SELECT 1 FROM {SCHEMA}.Profile WHERE Email = ?", (email,)
+        ).fetchone()
 
+        if not exists:
+            pwd_hash = generate_password_hash(plain_password)
+            cur.execute(
+                f"""
+                INSERT INTO {SCHEMA}.Profile
+                    (Email, Username, AboutMe, Location, Dob, Language, Password, Role)
+                VALUES (?, ?, NULL, NULL, NULL, NULL, ?, ?)
+                """,
+                (email, username, pwd_hash, role),
+            )
+
+
+def seed_activities(cur):
+    # Baseline activities for preference selection.
+    activities = [
+        "Running",
+        "Swimming",
+        "Cycling",
+        "Hiking",
+        "Walking",
+    ]
+
+    for name in activities:
+        exists = cur.execute(
+            f"SELECT 1 FROM {SCHEMA}.Activity WHERE Activity = ?", (name,)
+        ).fetchone()
+
+        if not exists:
+            cur.execute(
+                f"INSERT INTO {SCHEMA}.Activity (Activity) VALUES (?)",
+                (name,),
+            )
+
+
+def seed_favourites(cur):
+    # Pre-populate favourite activities for demonstration accounts.
+    favourites_by_email = {
+        "grace@plymouth.ac.uk": ["Running", "Cycling"],
+        "tim@plymouth.ac.uk": ["Swimming", "Walking"],
+        "ada@plymouth.ac.uk": ["Hiking", "Running"],
+    }
+
+    # Build Activity name -> id lookup once to avoid repeated queries
+    rows = cur.execute(
+        f"SELECT Activity_id, Activity FROM {SCHEMA}.Activity"
+    ).fetchall()
+    activity_id_by_name = {r.Activity: r.Activity_id for r in rows}
+
+    for email, fav_names in favourites_by_email.items():
+        prof_exists = cur.execute(
+            f"SELECT 1 FROM {SCHEMA}.Profile WHERE Email = ?", (email,)
+        ).fetchone()
+        if not prof_exists:
+            continue
+
+        for act_name in fav_names:
+            act_id = activity_id_by_name.get(act_name)
+            if act_id is None:
+                continue
+
+            exists = cur.execute(
+                f"""
+                SELECT 1
+                FROM {SCHEMA}.FavouriteActivity
+                WHERE Email = ? AND Activity_id = ?
+                """,
+                (email, act_id),
+            ).fetchone()
+
+            if not exists:
+                cur.execute(
+                    f"""
+                    INSERT INTO {SCHEMA}.FavouriteActivity (Email, Activity_id)
+                    VALUES (?, ?)
+                    """,
+                    (email, act_id),
+                )
 
 
 def main():
@@ -209,23 +387,21 @@ def main():
         conn.autocommit = True
         cur = conn.cursor()
 
-        # Run main DDL (tables etc.)
+        # Core schema and tables
         cur.execute(CREATE_SQL)
 
-        # Trigger (separate execute)
+        # Trigger, view, and stored procedures
         cur.execute(TRIGGER_SQL)
-
-        # View
         cur.execute(VIEW_SQL)
-
-        # Stored procedure
         cur.execute(PROC_SQL)
-        
-        # Seed data
-        cur.execute(SEED_SQL)
 
+        # Seed baseline data
+        seed_profiles(cur)
+        seed_activities(cur)
+        seed_favourites(cur)
 
-        print("✅ CW2 schema + tables + trigger + view + stored procedure created/verified.")
+        print("CW2 schema + tables + trigger + view + Profile CRUD stored procedures created/verified.")
+
 
 if __name__ == "__main__":
     main()
