@@ -2,7 +2,7 @@ from datetime import datetime
 import pytz
 
 from config import db, ma
-from marshmallow_sqlalchemy import fields
+from marshmallow import fields
 
 
 LONDON_TZ = pytz.timezone("Europe/London")

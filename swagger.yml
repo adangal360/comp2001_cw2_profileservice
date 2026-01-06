@@ -32,64 +32,125 @@ paths:
     get:
       operationId: "profiles.read_all"
       tags: [Profiles]
-      summary: "List all profiles"
+      summary: "List all profiles (Admin only)"
+      parameters:
+        - $ref: "#/components/parameters/auth_email"
+        - $ref: "#/components/parameters/auth_password"
       responses:
         "200":
           description: "OK"
+        "401":
+          description: "Unauthenticated"
+        "403":
+          description: "Forbidden (Admin required)"
     post:
       operationId: "profiles.create"
       tags: [Profiles]
-      summary: "Create a profile"
+      summary: "Create a profile (must be the same user as auth headers)"
+      parameters:
+        - $ref: "#/components/parameters/auth_email"
+        - $ref: "#/components/parameters/auth_password"
       requestBody:
         required: true
         content:
           application/json:
             schema:
+              x-body-name: profile
               $ref: "#/components/schemas/ProfileCreate"
       responses:
         "201":
           description: "Created"
+        "401":
+          description: "Unauthenticated"
+        "403":
+          description: "Forbidden (must be same user)"
         "409":
           description: "Email already exists"
+
+  /profiles/upsert:
+    post:
+      operationId: "profiles.upsert"
+      tags: [Profiles]
+      summary: "Create or update a profile (stored procedure) (Admin only)"
+      parameters:
+        - $ref: "#/components/parameters/auth_email"
+        - $ref: "#/components/parameters/auth_password"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              x-body-name: profile
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: "Updated"
+        "201":
+          description: "Created"
+        "400":
+          description: "Bad request"
+        "401":
+          description: "Unauthenticated"
+        "403":
+          description: "Forbidden (Admin required)"
 
   /profiles/{email}:
     get:
       operationId: "profiles.read_one"
       tags: [Profiles]
-      summary: "Read one profile"
+      summary: "Read one profile (self or Admin)"
       parameters:
         - $ref: "#/components/parameters/email"
+        - $ref: "#/components/parameters/auth_email"
+        - $ref: "#/components/parameters/auth_password"
       responses:
         "200":
           description: "OK"
+        "401":
+          description: "Unauthenticated"
+        "403":
+          description: "Forbidden"
         "404":
           description: "Not found"
     put:
       operationId: "profiles.update"
       tags: [Profiles]
-      summary: "Update a profile"
+      summary: "Update a profile (self or Admin)"
       parameters:
         - $ref: "#/components/parameters/email"
+        - $ref: "#/components/parameters/auth_email"
+        - $ref: "#/components/parameters/auth_password"
       requestBody:
         required: true
         content:
           application/json:
             schema:
+              x-body-name: profile
               $ref: "#/components/schemas/ProfileUpdate"
       responses:
         "200":
           description: "Updated"
+        "401":
+          description: "Unauthenticated"
+        "403":
+          description: "Forbidden"
         "404":
           description: "Not found"
     delete:
       operationId: "profiles.delete"
       tags: [Profiles]
-      summary: "Delete a profile"
+      summary: "Delete a profile (self or Admin)"
       parameters:
         - $ref: "#/components/parameters/email"
+        - $ref: "#/components/parameters/auth_email"
+        - $ref: "#/components/parameters/auth_password"
       responses:
         "200":
           description: "Deleted"
+        "401":
+          description: "Unauthenticated"
+        "403":
+          description: "Forbidden"
         "404":
           description: "Not found"
 
@@ -104,16 +165,24 @@ paths:
     post:
       operationId: "activities.create"
       tags: [Activities]
-      summary: "Create an activity"
+      summary: "Create an activity (Admin only)"
+      parameters:
+        - $ref: "#/components/parameters/auth_email"
+        - $ref: "#/components/parameters/auth_password"
       requestBody:
         required: true
         content:
           application/json:
             schema:
+              x-body-name: activity
               $ref: "#/components/schemas/ActivityCreate"
       responses:
         "201":
           description: "Created"
+        "401":
+          description: "Unauthenticated"
+        "403":
+          description: "Forbidden (Admin required)"
         "409":
           description: "Activity already exists"
 
@@ -121,29 +190,42 @@ paths:
     get:
       operationId: "favourites.read_all"
       tags: [Favourites]
-      summary: "List favourites for a profile"
+      summary: "List favourites for a profile (self or Admin)"
       parameters:
         - $ref: "#/components/parameters/email"
+        - $ref: "#/components/parameters/auth_email"
+        - $ref: "#/components/parameters/auth_password"
       responses:
         "200":
           description: "OK"
+        "401":
+          description: "Unauthenticated"
+        "403":
+          description: "Forbidden"
         "404":
           description: "Profile not found"
     post:
       operationId: "favourites.create"
       tags: [Favourites]
-      summary: "Add favourite activity for a profile"
+      summary: "Add favourite activity for a profile (self or Admin)"
       parameters:
         - $ref: "#/components/parameters/email"
+        - $ref: "#/components/parameters/auth_email"
+        - $ref: "#/components/parameters/auth_password"
       requestBody:
         required: true
         content:
           application/json:
             schema:
+              x-body-name: favourite
               $ref: "#/components/schemas/FavouriteCreate"
       responses:
         "201":
           description: "Created"
+        "401":
+          description: "Unauthenticated"
+        "403":
+          description: "Forbidden"
         "404":
           description: "Profile or Activity not found"
         "409":
@@ -153,15 +235,41 @@ paths:
     delete:
       operationId: "favourites.delete"
       tags: [Favourites]
-      summary: "Remove favourite activity for a profile"
+      summary: "Remove favourite activity for a profile (self or Admin)"
       parameters:
         - $ref: "#/components/parameters/email"
         - $ref: "#/components/parameters/activity_id"
+        - $ref: "#/components/parameters/auth_email"
+        - $ref: "#/components/parameters/auth_password"
       responses:
         "200":
           description: "Deleted"
+        "401":
+          description: "Unauthenticated"
+        "403":
+          description: "Forbidden"
         "404":
           description: "Favourite not found"
+
+  /auth/verify:
+    post:
+      operationId: "auth_verify.verify"
+      tags: [Auth]
+      summary: "Verify credentials against Authenticator API"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              x-body-name: credentials
+              type: object
+              required: [Email, Password]
+              properties:
+                Email: { type: string, maxLength: 30 }
+                Password: { type: string, maxLength: 30 }
+      responses:
+        "200":
+          description: "Verification result"
 
 components:
   parameters:
@@ -172,6 +280,7 @@ components:
       schema:
         type: string
         maxLength: 30
+
     activity_id:
       name: activity_id
       in: path
@@ -179,10 +288,26 @@ components:
       schema:
         type: integer
 
+    auth_email:
+      name: X-Auth-Email
+      in: header
+      required: true
+      schema:
+        type: string
+      description: "Email used to authenticate against Authenticator API"
+
+    auth_password:
+      name: X-Auth-Password
+      in: header
+      required: true
+      schema:
+        type: string
+      description: "Password used to authenticate against Authenticator API"
+
   schemas:
     ProfileCreate:
       type: object
-      required: [Email, Username, Password]
+      required: [Email, Username]
       properties:
         Email: { type: string, maxLength: 30 }
         Username: { type: string, maxLength: 30 }
@@ -190,7 +315,6 @@ components:
         Location: { type: string, maxLength: 50 }
         Dob: { type: string, format: date }
         Language: { type: string, maxLength: 30 }
-        Password: { type: string, maxLength: 30 }
         Role:
           type: string
           maxLength: 5
@@ -200,12 +324,12 @@ components:
     ProfileUpdate:
       type: object
       properties:
+        Email: { type: string, maxLength: 30, description: "Ignored on update; path parameter is used" }
         Username: { type: string, maxLength: 30 }
         AboutMe: { type: string }
         Location: { type: string, maxLength: 50 }
         Dob: { type: string, format: date }
         Language: { type: string, maxLength: 30 }
-        Password: { type: string, maxLength: 30 }
         Role:
           type: string
           maxLength: 5
@@ -222,5 +346,3 @@ components:
       required: [Activity_id]
       properties:
         Activity_id: { type: integer }
-
-
