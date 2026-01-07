@@ -155,7 +155,7 @@ def update(email, profile):
 
     # Enforce admin-only role changes (prevents self role escalation)
     role = profile.get("Role")
-    if role is not None and actor.Role != "Admin":
+    if role != actor.Role and actor.Role != "Admin":
         abort(403, "Only Admin can change role")
 
     # Hash password if a new one is provided
