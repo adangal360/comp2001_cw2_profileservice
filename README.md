@@ -5,7 +5,7 @@ This repository contains the **ProfileService** microservice for COMP2001 CW2.
 The service is implemented in **Python (Flask + Connexion)**, uses a **Microsoft SQL Server** backend (schema `CW2`), and is deployed as a **Docker container**.  
 The API is documented via **Swagger/OpenAPI** and returns **JSON**.
 
-> **Important:** This service is designed to be pulled and run directly from Docker Hub for marking.
+> **Important:** This service is designed to be pulled and run directly from Docker Hub.
 
 ---
 
@@ -13,7 +13,7 @@ The API is documented via **Swagger/OpenAPI** and returns **JSON**.
 
 ProfileService is responsible for Trail App user profiles and preferences:
 
-- **Profiles (main assessed resource):**
+- **Profiles:**
   - CRUD operations are implemented via **SQL Server stored procedures**
   - API endpoints call stored procedures (no dynamic inline SQL for profile CRUD)
 
@@ -118,14 +118,14 @@ Once running:
 
 ---
 
-## 8) Docker Hub image (for marking)
+## 8) Docker Hub image
 
 **Docker Hub repository:**  
 `anubhavdangal/comp2001-cw2-profileservice:latest`
 
 ---
 
-## 9) How to run (marker instructions)
+## 9) How to run
 
 ### Pull and run the container
 ```bash
