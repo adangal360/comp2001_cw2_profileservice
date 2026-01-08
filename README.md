@@ -123,6 +123,25 @@ Once running:
 **Docker Hub repository:**  
 `anubhavdangal/comp2001-cw2-profileservice:latest`
 
+**Platform support:**  
+This image is published as a **multi-architecture Docker image** and supports both:
+- `linux/amd64`
+- `linux/arm64`
+
+### Platform compatibility note
+
+During development, the Docker image was initially built on an Apple Silicon (ARM64) environment.  
+As a result, the earliest image build was architecture-specific and did not run on some `linux/amd64`
+machines (e.g. standard Windows or Intel-based systems).
+
+To resolve this and ensure **compatibility across all machines**, the final submitted image
+was rebuilt and published as a **multi-architecture Docker image**, supporting both:
+
+- `linux/amd64` (Windows / Intel / most lab machines)
+- `linux/arm64` (Apple Silicon)
+
+Docker automatically selects the correct image variant at pull time.
+
 ---
 
 ## 9) How to run
